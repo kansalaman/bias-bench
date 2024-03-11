@@ -44,10 +44,11 @@ parser.add_argument(
 )
 parser.add_argument(
     "--bias_type",
+    default='gender',
     action="store",
     type=str,
     choices=["gender", "religion", "race"],
-    required=True,
+    required=False,
     help="The type of bias to compute the bias subspace for.",
 )
 parser.add_argument(
@@ -56,6 +57,12 @@ parser.add_argument(
     type=int,
     default=32,
     help="Batch size to use while encoding.",
+)
+
+parser.add_argument(
+    "--equalize",
+    action="store_true",
+    help="Whether to equalize the subspace.",
 )
 
 
@@ -68,6 +75,11 @@ if __name__ == "__main__":
         model_name_or_path=args.model_name_or_path,
         bias_type=args.bias_type,
     )
+
+    if args.equalize:
+        equalize_str = "-equalized"
+    else:
+        equalize_str = ""
 
     print("Computing bias subspace:")
     print(f" - persistent_dir: {args.persistent_dir}")
@@ -105,9 +117,9 @@ if __name__ == "__main__":
         )
 
     print(
-        f"Saving computed PCA components to: {args.persistent_dir}/results/subspace/{experiment_id}.pt."
+        f"Saving computed PCA components to: {args.persistent_dir}/results/subspace/{experiment_id}{equalize_str}.pt."
     )
     os.makedirs(f"{args.persistent_dir}/results/subspace", exist_ok=True)
     torch.save(
-        bias_direction, f"{args.persistent_dir}/results/subspace/{experiment_id}.pt"
+        bias_direction, f"{args.persistent_dir}/results/subspace/{experiment_id}{equalize_str}.pt"
     )

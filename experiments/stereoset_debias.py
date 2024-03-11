@@ -23,7 +23,7 @@ parser.add_argument(
     "--model",
     action="store",
     type=str,
-    default="SentenceDebiasForMaskedLM",
+    default="SentenceDebiasBertForMaskedLM",
     choices=[
         "SentenceDebiasBertForMaskedLM",
         "SentenceDebiasAlbertForMaskedLM",
@@ -53,7 +53,7 @@ parser.add_argument(
     action="store",
     type=str,
     default="bert-base-uncased",
-    choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
+    # choices=["bert-base-uncased", "albert-base-v2", "roberta-base", "gpt2"],
     help="HuggingFace model name or path (e.g., bert-base-uncased). Checkpoint from which a "
     "model is instantiated.",
 )
@@ -97,6 +97,12 @@ parser.add_argument(
     help="RNG seed. Used for logging in experiment ID.",
 )
 
+parser.add_argument(
+    "--equalize",
+    action="store_true",
+    help="Whether to equalize the subspace.",
+)
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -108,6 +114,8 @@ if __name__ == "__main__":
         bias_type=args.bias_type,
         seed=args.seed,
     )
+
+    equalize_str = "-equalized" if args.equalize else ""
 
     print("Running StereoSet:")
     print(f" - persistent_dir: {args.persistent_dir}")
@@ -125,6 +133,7 @@ if __name__ == "__main__":
         # Load the pre-computed bias direction for SentenceDebias.
         bias_direction = torch.load(args.bias_direction)
         kwargs["bias_direction"] = bias_direction
+        kwargs["equalize"] = args.equalize
 
     if args.projection_matrix is not None:
         # Load the pre-computed projection matrix for INLP.
@@ -161,6 +170,6 @@ if __name__ == "__main__":
 
     os.makedirs(f"{args.persistent_dir}/results/stereoset", exist_ok=True)
     with open(
-        f"{args.persistent_dir}/results/stereoset/{experiment_id}.json", "w"
+        f"{args.persistent_dir}/results/stereoset/{experiment_id}{equalize_str}.json", "w"
     ) as f:
         json.dump(results, f, indent=2)

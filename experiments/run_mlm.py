@@ -64,6 +64,10 @@ logger = logging.getLogger(__name__)
 MODEL_CONFIG_CLASSES = list(MODEL_FOR_MASKED_LM_MAPPING.keys())
 MODEL_TYPES = tuple(conf.model_type for conf in MODEL_CONFIG_CLASSES)
 
+gpt_debias_pairs = json.load(open('/home/ubuntu/224n/bias-bench/debiasing.json'))
+gpt_debias_pairs = {k.lower(): v.lower() for k, v in gpt_debias_pairs.items()}
+use_gpt_debias = True
+
 
 @dataclass
 class ModelArguments:
@@ -72,7 +76,7 @@ class ModelArguments:
     """
 
     model_name_or_path: Optional[str] = field(
-        default=None,
+        default="bert-base-uncased",
         metadata={
             "help": "The model checkpoint for weights initialization."
             "Don't set if you want to train a model from scratch."
@@ -156,7 +160,7 @@ class DataTrainingArguments:
         },
     )
     train_file: Optional[str] = field(
-        default=None, metadata={"help": "The input training data file (a text file)."}
+        default='data/text/wikipedia-10.txt', metadata={"help": "The input training data file (a text file)."}
     )
     validation_file: Optional[str] = field(
         default=None,
@@ -175,14 +179,14 @@ class DataTrainingArguments:
         },
     )
     max_seq_length: Optional[int] = field(
-        default=None,
+        default=512,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated."
         },
     )
     preprocessing_num_workers: Optional[int] = field(
-        default=None,
+        default=4,
         metadata={"help": "The number of processes to use for the preprocessing."},
     )
     mlm_probability: float = field(
@@ -223,13 +227,13 @@ class DataTrainingArguments:
         },
     )
     counterfactual_augmentation: Optional[str] = field(
-        default=None,
+        default='gender',
         metadata={
             "help": "What type of counterfactual augmentation to apply. Defaults to `None`."
         },
     )
     persistent_dir: str = field(
-        default=None,
+        default='/home/ubuntu/224n/bias-bench',
         metadata={"help": "Directory where all persistent data will be stored."},
     )
 
@@ -581,6 +585,17 @@ def main():
               as it is simpler.
         """
         outputs = []
+
+        # store all sentences in a list and save it to json
+        # all_sentences = []
+        # for input_ids in examples["input_ids"]:
+        #     sentence = tokenizer.decode(input_ids)
+        #     all_sentences.append(sentence)
+        # with open(f"{data_args.persistent_dir}/data/all_sentences.json", "w") as f:
+        #     json.dump(all_sentences, f)
+
+        # exit()
+
         for input_ids in examples["input_ids"]:
             # For simplicity, decode each example. It is easier to apply augmentation
             # on text as opposed to token IDs.
@@ -589,20 +604,37 @@ def main():
             augmented_sentence = words[:]
 
             augmented = False
+            num_augmented = 0
+            aug_dict = {}
             for position, word in enumerate(words):
-                for male_word, female_word in bias_attribute_words:
-                    if male_word == word:
-                        augmented = True
-                        augmented_sentence[position] = female_word
+                if not use_gpt_debias:
+                    for male_word, female_word in bias_attribute_words:
+                        if male_word == word:
+                            augmented = True
+                            augmented_sentence[position] = female_word
 
-                    if female_word == word:
+                        if female_word == word:
+                            augmented = True
+                            augmented_sentence[position] = male_word
+                else:
+                    if word in gpt_debias_pairs:
                         augmented = True
-                        augmented_sentence[position] = male_word
+                        aug_dict[position] = gpt_debias_pairs[word]
+                    
+                    if augmented:
+                        num_augmented += 1
+            
+            if augmented and use_gpt_debias:
+                aug_pos = random.choice(list(aug_dict.keys()))
+                augmented_sentence[aug_pos] = aug_dict[aug_pos]
+
 
             if augmented:
                 augmented_sentence = " ".join(augmented_sentence)
                 outputs.append(augmented_sentence)
                 outputs.append(sentence)
+        
+        print(f"Number of GPT augmented sentences: {num_augmented}")
 
         # There are potentially no counterfactual examples.
         if not outputs:

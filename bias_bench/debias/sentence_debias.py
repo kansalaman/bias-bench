@@ -83,9 +83,16 @@ def compute_gender_subspace(data, model, tokenizer, batch_size=32):
 
     pca = PCA(n_components=1)
     pca.fit(all_embeddings)
-
     # We use only the first PCA component for debiasing.
     bias_direction = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_male)
+    bd1 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_female)
+    bd2 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    bias_direction = torch.cat([bias_direction, bd1, bd2], dim=0)
 
     return bias_direction
 
@@ -185,9 +192,18 @@ def compute_race_subspace(data, model, tokenizer, batch_size=32):
 
     pca = PCA(n_components=1)
     pca.fit(all_embeddings)
-
-    # We use only the first PCA component for debiasing.
     bias_direction = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_r1)
+    bd1 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_r2)
+    bd2 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_r3)
+    bd3 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    bias_direction = torch.cat([bias_direction, bd1, bd2, bd3], dim=0)
 
     return bias_direction
 
@@ -287,8 +303,17 @@ def compute_religion_subspace(data, model, tokenizer, batch_size=32):
 
     pca = PCA(n_components=1)
     pca.fit(all_embeddings)
-
-    # We use only the first PCA component for debiasing.
     bias_direction = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_r1)
+    bd1 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_r2)
+    bd2 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    pca.fit(all_embeddings_r3)
+    bd3 = torch.tensor(pca.components_[0], dtype=torch.float32)
+
+    bias_direction = torch.cat([bias_direction, bd1, bd2, bd3], dim=0)
 
     return bias_direction

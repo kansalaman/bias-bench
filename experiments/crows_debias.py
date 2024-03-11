@@ -83,6 +83,12 @@ parser.add_argument(
     help="Determines which CrowS-Pairs dataset split to evaluate against.",
 )
 
+parser.add_argument(
+    "--equalize",
+    action="store_true",
+    help="Whether to equalize the subspace.",
+)
+
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -108,6 +114,7 @@ if __name__ == "__main__":
         # Load the pre-computed bias direction for SentenceDebias.
         bias_direction = torch.load(args.bias_direction)
         kwargs["bias_direction"] = bias_direction
+        kwargs["equalize"] = args.equalize
 
     if args.projection_matrix is not None:
         # Load the pre-computed projection matrix for INLP.

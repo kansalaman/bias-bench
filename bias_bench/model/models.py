@@ -48,26 +48,47 @@ class GPT2LMHeadModel:
 
 
 class _SentenceDebiasModel:
-    def __init__(self, model_name_or_path, bias_direction):
-        def _hook(module, input_, output, bias_direction):
+    def __init__(self, model_name_or_path, bias_direction, equalize = False):
+        def _hook(module, input_, output, bias_direction, equalize = False):
             # Debias the last hidden state.
             x = output["last_hidden_state"]
 
             # Ensure that everything is on the same device.
             bias_direction = bias_direction.to(x.device)
 
+            if not equalize:
+                bias_direction = bias_direction[:768]
+            else:
+                bias_direction = bias_direction.view(-1, 768)
+            
+            num_bias_classes = len(bias_direction)-1
+
             # Debias the representation.
             for t in range(x.size(1)):
-                x[:, t] = x[:, t] - torch.ger(
-                    torch.matmul(x[:, t], bias_direction), bias_direction
-                ) / bias_direction.dot(bias_direction)
+                if not equalize:
+                    x[:, t] = x[:, t] - torch.ger(
+                        torch.matmul(x[:, t], bias_direction), bias_direction
+                    ) / bias_direction.dot(bias_direction)
+                else:
+                    projections = []
+                    for i in range(num_bias_classes):
+                        projections.append(
+                            torch.ger(
+                                torch.matmul(x[:, t], bias_direction[i+1]), bias_direction[i+1]
+                            ) / bias_direction[i+1].dot(bias_direction[i+1])
+                        )
+                    x[:, t] = x[:, t] - sum(projections)
+                    norms = [torch.norm(x, dim=-1) for x in projections]
+                    unit_vectors = [x / norm for x, norm in zip(projections, norms)]
+                    equalized_projections = [x * sum(norms)/len(norms) for x in unit_vectors]
+                    x[:, t] = x[:, t] + sum(equalized_projections)
 
             # Update the output.
             output["last_hidden_state"] = x
 
             return output
 
-        self.func = partial(_hook, bias_direction=bias_direction)
+        self.func = partial(_hook, bias_direction=bias_direction, equalize = equalize)
 
 
 class _INLPModel:
@@ -123,8 +144,8 @@ class SentenceDebiasGPT2Model(_SentenceDebiasModel):
 
 
 class SentenceDebiasBertForMaskedLM(_SentenceDebiasModel):
-    def __new__(self, model_name_or_path, bias_direction):
-        super().__init__(self, model_name_or_path, bias_direction)
+    def __new__(self, model_name_or_path, bias_direction, equalize = False):
+        super().__init__(self, model_name_or_path, bias_direction, equalize = equalize)
         model = transformers.BertForMaskedLM.from_pretrained(model_name_or_path)
         model.bert.register_forward_hook(self.func)
         return model
